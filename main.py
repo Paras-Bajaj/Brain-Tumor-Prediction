@@ -1,6 +1,3 @@
-from google.colab import drive
-drive.mount('/content/drive')
-
 import torch
 from torch import nn, optim
 from torchvision import datasets, transforms
@@ -8,24 +5,21 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from torchvision.transforms.functional import to_pil_image
 
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.distributed.parallel_loader as pl
-
 # =========================
 # CONFIGURATION
 # =========================
-TRAIN_DIR = '/content/drive/MyDrive/tumor/Training'
-TEST_DIR  = '/content/drive/MyDrive/tumor/Testing'
+TRAIN_DIR = r'c:\Users\HP\OneDrive\Desktop\New folder\tumor\Training'
+TEST_DIR  = r'c:\Users\HP\OneDrive\Desktop\New folder\tumor\Testing'
 
 IMG_SIZE = 64
 BATCH_SIZE = 32
-EPOCHS = 15
+EPOCHS = 5
 LR = 3e-4
 WEIGHT_DECAY = 1e-4
 NUM_CLASSES = 4
 
-device = xm.xla_device()   # 🔥 TPU DEVICE
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device:", device)
 
 
 # =========================
@@ -60,14 +54,14 @@ def get_dataloaders(train_tf, test_tf):
         train_ds,
         batch_size=BATCH_SIZE,
         shuffle=True,
-        num_workers=8   # TPU likes more workers
+        num_workers=0   # Windows-safe
     )
 
     test_dl = DataLoader(
         test_ds,
         batch_size=BATCH_SIZE,
         shuffle=False,
-        num_workers=8
+        num_workers=0
     )
 
     return train_dl, test_dl
@@ -104,7 +98,7 @@ def get_model():
 
 
 # =========================
-# TRAINING (TPU STYLE)
+# TRAINING
 # =========================
 def train_model(model, train_dl, test_dl, optimizer, loss_fn):
     for epoch in range(EPOCHS):
@@ -113,17 +107,14 @@ def train_model(model, train_dl, test_dl, optimizer, loss_fn):
         correct = 0
         total = 0
 
-        # 🔥 TPU parallel loader
-        para_train_loader = pl.ParallelLoader(
-            train_dl, [device]
-        ).per_device_loader(device)
+        for x, y in train_dl:
+            x, y = x.to(device), y.to(device)
 
-        for x, y in para_train_loader:
             optimizer.zero_grad()
             outputs = model(x)
             loss = loss_fn(outputs, y)
-            loss.backward() 
-            xm.optimizer_step(optimizer)   # 🔥 TPU step
+            loss.backward()
+            optimizer.step()
 
             running_loss += loss.item()
             preds = outputs.argmax(dim=1)
@@ -137,12 +128,9 @@ def train_model(model, train_dl, test_dl, optimizer, loss_fn):
         val_correct = 0
         val_total = 0
 
-        para_test_loader = pl.ParallelLoader(
-            test_dl, [device]
-        ).per_device_loader(device)
-
         with torch.no_grad():
-            for x, y in para_test_loader:
+            for x, y in test_dl:
+                x, y = x.to(device), y.to(device)
                 outputs = model(x)
                 preds = outputs.argmax(dim=1)
                 val_correct += (preds == y).sum().item()
@@ -150,7 +138,7 @@ def train_model(model, train_dl, test_dl, optimizer, loss_fn):
 
         val_acc = 100 * val_correct / val_total
 
-        xm.master_print(
+        print(
             f"Epoch [{epoch+1}/{EPOCHS}] "
             f"Loss: {running_loss/len(train_dl):.4f} "
             f"Train Acc: {train_acc:.2f}% "
@@ -179,29 +167,23 @@ def predict_by_index(model, test_dl):
             continue
 
         img, label = test_dl.dataset[idx]
-        
-        # Add missing prediction logic
+
         with torch.no_grad():
-            img_processed = img.to(device).unsqueeze(0)
+            img_processed = img.unsqueeze(0).to(device)
             outputs = model(img_processed)
             pred = outputs.argmax(dim=1).item()
 
-        # De-normalize
+        # De-normalize for display
         unnorm = img * 0.5 + 0.5
         unnorm = unnorm.clamp(0, 1)
 
-        # Convert to PIL
         pil_img = to_pil_image(unnorm)
+        pil_img = pil_img.resize((256, 256))
 
-        # 🔥 Resize back for clear visualization (display only)
-        pil_img = pil_img.resize((256, 256))  # or 224×224
-
-        plt.figure(figsize=(4, 4))
         plt.imshow(pil_img, interpolation='nearest')
         plt.axis('off')
         plt.title(f"True: {classes[label]} | Predicted: {classes[pred]}")
         plt.show()
-
 
 
 # =========================
@@ -220,6 +202,11 @@ def main():
     loss_fn = nn.CrossEntropyLoss()
 
     train_model(model, train_dl, test_dl, optimizer, loss_fn)
+
+    # SAVE MODEL
+    torch.save(model.state_dict(), "tumor_model.pth")
+    print("Model saved as tumor_model.pth")
+
     predict_by_index(model, test_dl)
 
 
