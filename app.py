@@ -1,16 +1,23 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import torch
 from torch import nn
 from torchvision import transforms
 from PIL import Image
+import os
 
+# =========================
+# CONFIG
+# =========================
 IMG_SIZE = 64
 NUM_CLASSES = 4
 CLASSES = ['Glioma', 'Meningioma', 'No Tumor', 'Pituitary']
 
 DEVICE = torch.device("cpu")
 
+# =========================
+# MODEL
+# =========================
 model = nn.Sequential(
     nn.Conv2d(3, 32, 3, padding=1),
     nn.BatchNorm2d(32),
@@ -43,8 +50,15 @@ transform = transforms.Compose([
     transforms.Normalize([0.5]*3, [0.5]*3)
 ])
 
+# =========================
+# FLASK APP
+# =========================
 app = Flask(__name__)
-CORS(app)   # 🔥 THIS FIXES YOUR ISSUE
+CORS(app)
+
+@app.route('/')
+def home():
+    return render_template("templates/index.html")
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -60,5 +74,9 @@ def predict():
 
     return jsonify({'prediction': CLASSES[pred]})
 
+# =========================
+# RAILWAY ENTRY POINT
+# =========================
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
