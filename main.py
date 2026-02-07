@@ -8,8 +8,8 @@ from torchvision.transforms.functional import to_pil_image
 # =========================
 # CONFIGURATION
 # =========================
-TRAIN_DIR = r'c:\Users\HP\OneDrive\Desktop\New folder\tumor\Training'
-TEST_DIR  = r'c:\Users\HP\OneDrive\Desktop\New folder\tumor\Testing'
+TRAIN_DIR = r'Brain-Tumor-Prediction\Training'
+TEST_DIR  = r'Brain-Tumor-Prediction\Testing'
 
 IMG_SIZE = 64
 BATCH_SIZE = 32
