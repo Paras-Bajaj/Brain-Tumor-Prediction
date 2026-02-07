@@ -4,12 +4,16 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from torchvision.transforms.functional import to_pil_image
+from pathlib import Path
 
 # =========================
 # CONFIGURATION
 # =========================
-TRAIN_DIR = r'Brain-Tumor-Prediction\Training'
-TEST_DIR  = r'Brain-Tumor-Prediction\Testing'
+BASE_DIR = Path(__file__).resolve().parent
+
+TRAIN_DIR = BASE_DIR / "Training"
+TEST_DIR  = BASE_DIR / "Testing"
+
 
 IMG_SIZE = 64
 BATCH_SIZE = 32
