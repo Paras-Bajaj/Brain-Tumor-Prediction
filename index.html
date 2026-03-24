@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -132,7 +133,8 @@
             overflow: hidden;
         }
 
-        .upload-area:hover, .upload-area.dragover {
+        .upload-area:hover,
+        .upload-area.dragover {
             border-color: var(--primary);
             background: rgba(37, 99, 235, 0.03);
         }
@@ -407,7 +409,9 @@
         }
 
         @keyframes spin {
-            100% { transform: rotate(360deg); }
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         /* Footer */
@@ -480,7 +484,8 @@
                 <i class="fas fa-brain logo-icon"></i>
                 <span class="logo-text">NeuroScan AI</span>
             </div>
-            <p class="tagline">Advanced deep learning system for detecting and classifying brain tumors from MRI scans with clinical-grade accuracy.</p>
+            <p class="tagline">Advanced deep learning system for detecting and classifying brain tumors from MRI scans
+                with clinical-grade accuracy.</p>
         </header>
 
         <main>
@@ -488,19 +493,19 @@
                 <!-- Upload Section -->
                 <div class="card">
                     <h2 class="card-title"><i class="fas fa-upload"></i> Upload MRI Image</h2>
-                    
+
                     <div class="upload-area" id="uploadArea">
                         <i class="fas fa-cloud-upload-alt upload-icon"></i>
                         <p class="upload-text">Drag & drop your MRI image</p>
                         <p class="upload-subtext">Supports JPG, PNG, DICOM • Max 10MB</p>
                         <div class="browse-btn" id="browseBtn">Browse Files</div>
-                        <input type="file" id="fileInput" accept="image/*,.dcm">
+                        <input type="file" id="fileInput" accept="image/jpeg,image/jpg,image/png">
                     </div>
-                    
+
                     <div class="preview-container">
                         <img id="imagePreview" class="image-preview" alt="MRI Preview">
                     </div>
-                    
+
                     <div class="action-buttons">
                         <button class="btn btn-primary" id="predictBtn" onclick="uploadImage()" disabled>
                             <i class="fas fa-search"></i> Analyze Image
@@ -517,17 +522,17 @@
                         <h2 class="card-title"><i class="fas fa-chart-line"></i> Analysis Results</h2>
                         <div class="status-badge" id="statusBadge">Ready</div>
                     </div>
-                    
+
                     <div class="loading" id="loading">
                         <div class="spinner"></div>
                         <p>Processing MRI image with AI model...</p>
                         <p class="upload-subtext">This may take a few seconds</p>
                     </div>
-                    
+
                     <div class="prediction-result" id="predictionResult">
                         <div class="result-label">PREDICTED DIAGNOSIS</div>
                         <div class="result-value" id="resultValue">No Tumor</div>
-                        
+
                         <div class="confidence-meter">
                             <div class="confidence-label">
                                 <span>Confidence Level</span>
@@ -537,7 +542,7 @@
                                 <div class="confidence-fill" id="confidenceFill"></div>
                             </div>
                         </div>
-                        
+
                         <div class="class-info">
                             <div class="class-item">
                                 <div class="class-color glioma"></div>
@@ -557,10 +562,11 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div id="emptyState">
                         <div style="text-align: center; padding: 3rem 2rem; color: var(--gray);">
-                            <i class="fas fa-microscope" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                            <i class="fas fa-microscope"
+                                style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
                             <p>Upload an MRI image to begin analysis</p>
                             <p class="upload-subtext">AI model will classify the scan into one of four categories</p>
                         </div>
@@ -600,7 +606,7 @@
         // Event Listeners
         browseBtn.addEventListener('click', () => fileInput.click());
         uploadArea.addEventListener('click', () => fileInput.click());
-        
+
         fileInput.addEventListener('change', handleFileSelect);
         uploadArea.addEventListener('dragover', handleDragOver);
         uploadArea.addEventListener('dragleave', handleDragLeave);
@@ -629,7 +635,7 @@
         function handleDrop(e) {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
-            
+
             const file = e.dataTransfer.files[0];
             if (file && validateFile(file)) {
                 fileInput.files = e.dataTransfer.files;
@@ -642,17 +648,17 @@
         function validateFile(file) {
             const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/dicom'];
             const maxSize = 10 * 1024 * 1024; // 10MB
-            
+
             if (!validTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.dcm')) {
                 showNotification('Please upload a valid image (JPG, PNG, DICOM)', 'error');
                 return false;
             }
-            
+
             if (file.size > maxSize) {
                 showNotification('File size must be less than 10MB', 'error');
                 return false;
             }
-            
+
             return true;
         }
 
@@ -672,59 +678,64 @@
         }
 
         // Prediction Function
+        // Prediction Function (Fixed)
         async function uploadImage() {
             if (!fileInput.files[0]) {
                 showNotification('Please select an MRI image first', 'error');
                 return;
             }
 
-            // Update UI for processing
+            const file = fileInput.files[0];
+            if (!file.type.startsWith('image/')) {
+                showNotification('Please upload a valid image (JPG, PNG, JPEG only)', 'error');
+                return;
+            }
+
             updateStatus('processing');
             loading.style.display = 'block';
             predictionResult.style.display = 'none';
             emptyState.style.display = 'none';
             predictBtn.disabled = true;
-            
+
             const formData = new FormData();
             formData.append("file", fileInput.files[0]);
 
             try {
-                const response = await fetch("/predict", {
+                // CHANGE THIS LINE - Use absolute URL to backend
+                const response = await fetch("http://localhost:5000/predict", {
                     method: "POST",
                     body: formData
                 });
 
-                if (!response.ok) throw new Error('Server error');
-
                 const data = await response.json();
-                
-                // Simulate confidence for demo (backend doesn't provide it)
-                const confidence = 85 + Math.random() * 10;
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Server error');
+                }
+
+                loading.style.display = 'none';
+                predictionResult.style.display = 'block';
+                updateStatus('complete');
+
                 const prediction = data.prediction;
-                
-                // Update results
-                setTimeout(() => {
-                    loading.style.display = 'none';
-                    predictionResult.style.display = 'block';
-                    updateStatus('complete');
-                    
-                    resultValue.textContent = prediction;
-                    resultValue.className = 'result-value ' + prediction.toLowerCase().replace(' ', '-');
-                    
-                    confidenceFill.style.width = `${confidence}%`;
-                    confidencePercent.textContent = `${confidence.toFixed(1)}%`;
-                    
-                    showNotification(`Analysis complete: ${prediction} detected`, 'success');
-                    predictBtn.disabled = false;
-                }, 1500);
+                const confidence = data.confidence || 95;
+
+                resultValue.textContent = prediction;
+                resultValue.className = 'result-value ' + prediction.toLowerCase().replace(' ', '-');
+
+                confidenceFill.style.width = `${confidence}%`;
+                confidencePercent.textContent = `${confidence.toFixed(1)}%`;
+
+                showNotification(`Analysis complete: ${prediction} detected with ${confidence.toFixed(1)}% confidence`, 'success');
+                predictBtn.disabled = false;
 
             } catch (error) {
                 loading.style.display = 'none';
                 emptyState.style.display = 'block';
                 updateStatus('ready');
                 predictBtn.disabled = false;
-                
-                showNotification('Server not reachable. Please ensure backend is running.', 'error');
+
+                showNotification(error.message || 'Server error. Please make sure backend is running on port 5000', 'error');
                 console.error('Error:', error);
             }
         }
@@ -745,7 +756,7 @@
         function showNotification(message, type = 'info') {
             notification.textContent = message;
             notification.className = `notification ${type} show`;
-            
+
             setTimeout(() => {
                 notification.classList.remove('show');
             }, 4000);
@@ -757,4 +768,5 @@
         });
     </script>
 </body>
+
 </html>

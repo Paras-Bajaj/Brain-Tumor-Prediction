@@ -5,6 +5,12 @@ from torch import nn
 from torchvision import transforms
 from PIL import Image
 import os
+import sys
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # =========================
 # CONFIG
@@ -41,8 +47,18 @@ model = nn.Sequential(
     nn.Linear(256, NUM_CLASSES)
 ).to(DEVICE)
 
-model.load_state_dict(torch.load("tumor_model.pth", map_location=DEVICE))
-model.eval()
+# Load model with error handling
+try:
+    if not os.path.exists("tumor_model.pth"):
+        logger.error("Model file 'tumor_model.pth' not found!")
+        raise FileNotFoundError("Model file not found")
+    
+    model.load_state_dict(torch.load("tumor_model.pth", map_location=DEVICE))
+    model.eval()
+    logger.info("Model loaded successfully")
+except Exception as e:
+    logger.error(f"Failed to load model: {e}")
+    model = None
 
 transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
@@ -58,25 +74,63 @@ CORS(app)
 
 @app.route('/')
 def home():
-    return render_template("index.html")
+    try:
+        return render_template("index.html")
+    except Exception as e:
+        logger.error(f"Template error: {e}")
+        return jsonify({'error': 'Template not found'}), 500
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint for Railway"""
+    return jsonify({
+        'status': 'healthy',
+        'model_loaded': model is not None
+    })
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    # Check if model is loaded
+    if model is None:
+        return jsonify({'error': 'Model not loaded. Please contact administrator.'}), 503
+    
+    # Check if file was uploaded
     if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'})
-
-    image = Image.open(request.files['file']).convert('RGB')
-    img_tensor = transform(image).unsqueeze(0)
-
-    with torch.no_grad():
-        output = model(img_tensor)
-        pred = output.argmax(dim=1).item()
-
-    return jsonify({'prediction': CLASSES[pred]})
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    
+    # Check if file is empty
+    if file.filename == '':
+        return jsonify({'error': 'Empty filename'}), 400
+    
+    try:
+        # Open and process image
+        image = Image.open(file).convert('RGB')
+        
+        # Transform and predict
+        img_tensor = transform(image).unsqueeze(0)
+        
+        with torch.no_grad():
+            output = model(img_tensor)
+            probabilities = torch.softmax(output, dim=1)
+            pred = output.argmax(dim=1).item()
+            confidence = probabilities[0][pred].item() * 100
+        
+        return jsonify({
+            'prediction': CLASSES[pred],
+            'confidence': round(confidence, 2),
+            'success': True
+        })
+        
+    except Exception as e:
+        logger.error(f"Prediction error: {e}")
+        return jsonify({'error': f'Failed to process image: {str(e)}'}), 500
 
 # =========================
 # RAILWAY ENTRY POINT
 # =========================
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    logger.info(f"Starting Flask app on port {port}")
+    app.run(host='0.0.0.0', port=port, debug=False)
