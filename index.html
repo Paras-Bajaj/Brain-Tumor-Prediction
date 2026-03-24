@@ -310,10 +310,11 @@
         .class-item {
             padding: 1rem;
             border-radius: 8px;
-            background: var(--light);
+            background: white;
             display: flex;
             align-items: center;
             gap: 10px;
+            border: 1px solid var(--border);
         }
 
         .class-color {
@@ -370,7 +371,7 @@
             color: white;
         }
 
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background: var(--primary-dark);
             transform: translateY(-2px);
         }
@@ -490,14 +491,14 @@
 
         <main>
             <div class="dashboard">
-                <!-- Upload Section -->
+                <!-- Upload Section - Fixed without form -->
                 <div class="card">
                     <h2 class="card-title"><i class="fas fa-upload"></i> Upload MRI Image</h2>
 
                     <div class="upload-area" id="uploadArea">
                         <i class="fas fa-cloud-upload-alt upload-icon"></i>
                         <p class="upload-text">Drag & drop your MRI image</p>
-                        <p class="upload-subtext">Supports JPG, PNG, DICOM • Max 10MB</p>
+                        <p class="upload-subtext">Supports JPG, PNG • Max 10MB</p>
                         <div class="browse-btn" id="browseBtn">Browse Files</div>
                         <input type="file" id="fileInput" accept="image/jpeg,image/jpg,image/png">
                     </div>
@@ -507,10 +508,10 @@
                     </div>
 
                     <div class="action-buttons">
-                        <button class="btn btn-primary" id="predictBtn" onclick="uploadImage()" disabled>
+                        <button type="button" class="btn btn-primary" id="predictBtn" onclick="uploadImage()" disabled>
                             <i class="fas fa-search"></i> Analyze Image
                         </button>
-                        <button class="btn btn-secondary" onclick="resetAll()">
+                        <button type="button" class="btn btn-secondary" onclick="resetAll()">
                             <i class="fas fa-redo"></i> Reset
                         </button>
                     </div>
@@ -520,7 +521,7 @@
                 <div class="card result-card">
                     <div class="result-header">
                         <h2 class="card-title"><i class="fas fa-chart-line"></i> Analysis Results</h2>
-                        <div class="status-badge" id="statusBadge">Ready</div>
+                        <div class="status-badge ready" id="statusBadge">Ready</div>
                     </div>
 
                     <div class="loading" id="loading">
@@ -536,7 +537,7 @@
                         <div class="confidence-meter">
                             <div class="confidence-label">
                                 <span>Confidence Level</span>
-                                <span id="confidencePercent">85%</span>
+                                <span id="confidencePercent">0%</span>
                             </div>
                             <div class="confidence-bar">
                                 <div class="confidence-fill" id="confidenceFill"></div>
@@ -588,6 +589,9 @@
     </div>
 
     <script>
+        // Configuration
+        const BACKEND_URL = 'http://localhost:5000';  // Update this for production
+
         // DOM Elements
         const fileInput = document.getElementById('fileInput');
         const uploadArea = document.getElementById('uploadArea');
@@ -646,11 +650,11 @@
         }
 
         function validateFile(file) {
-            const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/dicom'];
+            const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
             const maxSize = 10 * 1024 * 1024; // 10MB
 
-            if (!validTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.dcm')) {
-                showNotification('Please upload a valid image (JPG, PNG, DICOM)', 'error');
+            if (!validTypes.includes(file.type)) {
+                showNotification('Please upload a valid image (JPG, PNG only)', 'error');
                 return false;
             }
 
@@ -677,20 +681,23 @@
             statusBadge.className = 'status-badge ' + status;
         }
 
-        // Prediction Function
-        // Prediction Function (Fixed)
+        // Main Prediction Function
         async function uploadImage() {
+            // Check if file is selected
             if (!fileInput.files[0]) {
                 showNotification('Please select an MRI image first', 'error');
                 return;
             }
 
             const file = fileInput.files[0];
+
+            // Validate file type again
             if (!file.type.startsWith('image/')) {
-                showNotification('Please upload a valid image (JPG, PNG, JPEG only)', 'error');
+                showNotification('Please upload a valid image (JPG, PNG only)', 'error');
                 return;
             }
 
+            // Update UI for processing
             updateStatus('processing');
             loading.style.display = 'block';
             predictionResult.style.display = 'none';
@@ -701,8 +708,8 @@
             formData.append("file", fileInput.files[0]);
 
             try {
-                // CHANGE THIS LINE - Use absolute URL to backend
-                const response = await fetch("http://localhost:5000/predict", {
+                // Make API call to backend
+                const response = await fetch(`${BACKEND_URL}/predict`, {
                     method: "POST",
                     body: formData
                 });
@@ -713,42 +720,66 @@
                     throw new Error(data.error || 'Server error');
                 }
 
+                // Update results with actual data from backend
                 loading.style.display = 'none';
                 predictionResult.style.display = 'block';
                 updateStatus('complete');
 
                 const prediction = data.prediction;
-                const confidence = data.confidence || 95;
+                const confidence = data.confidence || 95; // Fallback if backend doesn't provide
 
                 resultValue.textContent = prediction;
                 resultValue.className = 'result-value ' + prediction.toLowerCase().replace(' ', '-');
 
-                confidenceFill.style.width = `${confidence}%`;
+                // Animate confidence bar
+                setTimeout(() => {
+                    confidenceFill.style.width = `${confidence}%`;
+                }, 100);
                 confidencePercent.textContent = `${confidence.toFixed(1)}%`;
 
                 showNotification(`Analysis complete: ${prediction} detected with ${confidence.toFixed(1)}% confidence`, 'success');
                 predictBtn.disabled = false;
 
             } catch (error) {
+                console.error('Error:', error);
                 loading.style.display = 'none';
                 emptyState.style.display = 'block';
                 updateStatus('ready');
                 predictBtn.disabled = false;
 
-                showNotification(error.message || 'Server error. Please make sure backend is running on port 5000', 'error');
-                console.error('Error:', error);
+                showNotification(error.message || 'Cannot connect to backend. Make sure backend is running on port 5000', 'error');
             }
         }
 
         // Reset Function
         function resetAll() {
+            // Clear file input
             fileInput.value = '';
+
+            // Clear image preview
             imagePreview.style.display = 'none';
+            imagePreview.src = '';
+
+            // Reset result display
             predictionResult.style.display = 'none';
             loading.style.display = 'none';
             emptyState.style.display = 'block';
+
+            // Reset confidence bar
+            confidenceFill.style.width = '0%';
+            confidencePercent.textContent = '0%';
+
+            // Reset result value
+            resultValue.textContent = 'No Tumor';
+            resultValue.className = 'result-value';
+
+            // Update status
             updateStatus('ready');
+
+            // Disable predict button
             predictBtn.disabled = true;
+
+            // Show notification
             showNotification('Reset complete. Ready for new analysis.', 'info');
         }
 
@@ -762,9 +793,30 @@
             }, 4000);
         }
 
-        // Initialize
+        // Check backend health on load
+        async function checkBackendHealth() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.model_loaded) {
+                        showNotification('NeuroScan AI is ready. Upload an MRI image to begin.', 'success');
+                    } else {
+                        showNotification('Backend is running but model not loaded. Please check logs.', 'error');
+                    }
+                } else {
+                    showNotification('Backend server is running but health check failed.', 'error');
+                }
+            } catch (error) {
+                console.warn('Backend health check failed:', error);
+                showNotification('Cannot connect to backend. Make sure Flask server is running on port 5000', 'error');
+            }
+        }
+
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
-            showNotification('NeuroScan AI is ready. Upload an MRI image to begin.', 'info');
+            // Small delay to allow everything to load
+            setTimeout(checkBackendHealth, 1000);
         });
     </script>
 </body>
